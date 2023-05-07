@@ -10,6 +10,7 @@ pub(crate) enum Error {
     Io(std::io::Error),
     MissingEnvVar {
         name: String,
+        #[allow(dead_code)]
         inner_error: std::env::VarError,
     },
     DirectoryInLocalesFolder,
