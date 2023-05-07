@@ -31,8 +31,8 @@
 //!     assert_eq!("Hello, World!", Locale::En.hello_world());
 //!     assert_eq!("Hej, Verden!", Locale::Da.hello_world());
 //!
-//!     assert_eq!("Hello Bob", Locale::En.greeting(Name("Bob")));
-//!     assert_eq!("Hej Bob", Locale::Da.greeting(Name("Bob")));
+//!     assert_eq!("Hello Bob", Locale::En.greeting("Bob"));
+//!     assert_eq!("Hej Bob", Locale::Da.greeting("Bob"));
 //! }
 //! ```
 //!
@@ -60,23 +60,20 @@
 //!     // Placeholders in strings become arguments to the methods.
 //!     // For strings with multiple placeholders they must be provided in
 //!     // alphabetical order.
-//!     pub fn greeting(self, name_: Name<'_>) -> String {
+//!     pub fn greeting(self, name_: &str) -> String {
 //!         match self {
-//!             Locale::Da => format!("Hej {name}", name = name_.0),
-//!             Locale::En => format!("Hello {name}", name = name_.0),
+//!             Locale::Da => format!("Hej {name}", name = name_),
+//!             Locale::En => format!("Hello {name}", name = name_),
 //!         }
 //!     }
 //! }
-//!
-//! // A placeholder for strings such as `"Hello {name}"`.
-//! pub struct Name<'a>(pub &'a str);
 //!
 //! fn main() {
 //!     assert_eq!("Hello, World!", Locale::En.hello_world());
 //!     assert_eq!("Hej, Verden!", Locale::Da.hello_world());
 //!
-//!     assert_eq!("Hello Bob", Locale::En.greeting(Name("Bob")));
-//!     assert_eq!("Hej Bob", Locale::Da.greeting(Name("Bob")));
+//!     assert_eq!("Hello Bob", Locale::En.greeting("Bob"));
+//!     assert_eq!("Hej Bob", Locale::Da.greeting("Bob"));
 //! }
 //! ```
 //!
@@ -96,8 +93,8 @@
 //! i18n!("tests/locales_with_different_placeholders", open: "%{", close: "}");
 //! #
 //! # fn main() {
-//! #     assert_eq!("Hello Bob", Locale::En.greeting_different_placeholder(PercentPlaceholder("Bob")));
-//! #     assert_eq!("Hej Bob", Locale::Da.greeting_different_placeholder(PercentPlaceholder("Bob")));
+//! #     assert_eq!("Hello Bob", Locale::En.greeting_different_placeholder("Bob"));
+//! #     assert_eq!("Hej Bob", Locale::Da.greeting_different_placeholder("Bob"));
 //! # }
 //! ```
 //!
@@ -120,7 +117,6 @@ mod error;
 mod placeholder_parsing;
 
 use error::{Error, MissingKeysInLocale, Result};
-use heck::CamelCase;
 use placeholder_parsing::find_placeholders;
 use proc_macro2::{Ident, Span, TokenStream};
 use quote::quote;
@@ -297,8 +293,7 @@ fn gen_i18n_struct(translations: Translations, out: &mut TokenStream) {
             }
 
             let args = placeholders.iter().map(|placeholder| {
-                let type_name = ident(&placeholder.to_string().to_camel_case());
-                quote! { #placeholder: #type_name<'_> }
+                quote! { #placeholder: &str }
             });
 
             let match_arms = translations.iter().map(|(locale_name, (translation, _))| {
@@ -320,7 +315,7 @@ fn gen_i18n_struct(translations: Translations, out: &mut TokenStream) {
                         );
                         if translation.contains(&placehoder_with_open_close) {
                             let format_key = ident(&format_key);
-                            Some(quote! { #format_key = #placeholder.0 })
+                            Some(quote! { #format_key = #placeholder })
                         } else {
                             None
                         }
@@ -344,17 +339,7 @@ fn gen_i18n_struct(translations: Translations, out: &mut TokenStream) {
         })
         .collect::<Vec<_>>();
 
-    let placeholder_newtypes = all_unique_placeholders.into_iter().map(|placeholder| {
-        let placeholder = ident(&placeholder.to_string().to_camel_case());
-        quote! {
-            #[allow(missing_docs)]
-            pub struct #placeholder<'a>(pub &'a str);
-        }
-    });
-
     out.extend(quote! {
-        #(#placeholder_newtypes)*
-
         impl Locale {
             #(#methods)*
         }
